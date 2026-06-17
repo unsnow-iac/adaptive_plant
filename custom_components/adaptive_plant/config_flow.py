@@ -232,8 +232,16 @@ def _save_uploaded_image(hass: HomeAssistant, file_id: str, previous_path: str |
     filename = f"{uuid.uuid4().hex}.jpg"
     target_path = os.path.join(target_dir, filename)
 
+    try:
+        from pillow_heif import register_heif_opener
+        register_heif_opener()
+    except ImportError:
+        pass
+
     with process_uploaded_file(hass, file_id) as temp_path:
         with Image.open(temp_path) as img:
+            from PIL import ImageOps
+            img = ImageOps.exif_transpose(img)
             img = img.convert("RGB")
             img.thumbnail((1024, 1024))
             img.save(target_path, format="JPEG", quality=85)
@@ -522,6 +530,7 @@ class AdaptivePlantOptionsFlow(OptionsFlow):
             clear_label = (not label_stripped) or label_stripped.lower() == "null"
 
             cleaned = {k: v for k, v in user_input.items() if v not in (None, "")}
+            cleaned.pop(CONF_IMAGE_UPLOAD, None)
 
             # Normalise label: drop from `cleaned` unconditionally, then re-add
             # the stripped value only if the user didn't intend to clear it.
