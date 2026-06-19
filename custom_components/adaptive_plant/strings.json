@@ -91,9 +91,13 @@
       },
       "image": {
         "title": "Plant Image",
-        "description": "Enter a path to an image in your /local/ folder (e.g. /local/IMG_4743.jpeg).",
+        "description": "Upload a photo, or enter a path to an image in your /local/ folder (e.g. /local/IMG_4743.jpeg).",
         "data": {
+          "image_upload": "Upload image",
           "image_path": "Image path (/local/...)"
+        },
+        "data_description": {
+          "image_upload": "Pick a photo from your device. Takes priority over the path below."
         }
       },
       "latin_name": {
@@ -115,6 +119,7 @@
     "error": {
       "name_required": "Plant name cannot be empty.",
       "invalid_image_path": "Image path must start with /local/.",
+      "invalid_image": "Could not process the uploaded image. Please choose a different file.",
       "dry_above_wet": "Dry threshold must be less than wet threshold.",
       "invalid_date": "Please enter a valid date."
     },
@@ -133,6 +138,7 @@
           "snooze_threshold": "Snooze threshold (times)",
           "health_prompt_interval_days": "Health prompt interval (days)",
           "fertilization_interval_days": "Fertilization interval (days)",
+          "image_upload": "Upload image",
           "image_path": "Image path (/local/...)",
           "notes_enabled": "Enable notes",
           "latin_name": "Latin name",
@@ -149,7 +155,8 @@
           "fertilization_enabled": "Toggle to enable or disable fertilization tracking. Previous dates are preserved when re-enabled.",
           "repotting_enabled": "Toggle to enable or disable repotting tracking. Previous dates are preserved when re-enabled.",
           "moisture_sensor_enabled": "Toggle off to remove the moisture sensor and clear all thresholds.",
-          "moisture_sensor": "Select a sensor to drive automatic watering logic."
+          "moisture_sensor": "Select a sensor to drive automatic watering logic.",
+          "image_upload": "Pick a photo from your device. Takes priority over the path below."
         }
       },
       "moisture_options": {
@@ -191,7 +198,8 @@
     },
     "error": {
       "dry_above_wet": "Dry threshold must be less than wet threshold.",
-      "invalid_date": "Please enter a valid date."
+      "invalid_date": "Please enter a valid date.",
+      "invalid_image": "Could not process the uploaded image. Please choose a different file."
     }
   },
   "entity": {
