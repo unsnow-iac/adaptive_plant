@@ -644,8 +644,11 @@ class AdaptivePlantOptionsFlow(OptionsFlow):
             # and days-until don't move until the next watering/fert event. We
             # recompute from the last event date so the new cadence takes effect
             # immediately. Goes into `cleaned`, so it propagates through both the
-            # no-moisture merge and the moisture_options merge. Per-period snooze /
-            # early-watering nudges live in the runtime path and are untouched.
+            # no-moisture merge and the moisture_options merge. Note this resets
+            # next_watering to last_watered + interval, so any in-period snooze or
+            # early-watering adjustment to the date is discarded — an explicit
+            # interval change is treated as a fresh reschedule. The snooze /
+            # early-watering counters themselves are runtime state, left as-is.
             new_water_interval = user_input.get(OPT_WATERING_INTERVAL)
             old_water_interval = current_opts.get(
                 OPT_WATERING_INTERVAL, entry.data.get(OPT_WATERING_INTERVAL)
