@@ -28,6 +28,8 @@ async def async_setup_entry(
         EarlyWateringCountSensor(plant, entry),
         SnoozeCountSensor(plant, entry),
         CurrentMoistureSensor(plant, entry),
+        CurrentTemperatureSensor(plant, entry),
+        CurrentHumiditySensor(plant, entry),
     ]
 
     if plant.enable_fertilization:
@@ -327,6 +329,114 @@ class CurrentMoistureSensor(PlantSensorBase):
             return False
         state = self.hass.states.get(sensor_id)
         return state is not None and state.state not in ("unknown", "unavailable")
+
+
+class LinkedSensorMirror(PlantSensorBase):
+    """Diagnostic passthrough that mirrors a linked external sensor's reading.
+
+    Generalises the CurrentMoistureSensor pattern for display-only environment
+    parameters (temperature, humidity, …) that have no scheduling effect.
+    Subclasses set the device class / icon / translation key and override
+    `_linked_sensor_id` to return the entity id from PlantData.
+
+    Always created so it shows on the device page; `available` gates whether a
+    reading is shown — unavailable when no sensor is linked or the source is
+    unavailable. The unit follows the source sensor so °C/°F (etc.) is honoured.
+    """
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, plant: PlantData, entry: ConfigEntry) -> None:
+        super().__init__(plant, entry)
+        self._attr_entity_registry_enabled_default = True
+
+    @property
+    def _linked_sensor_id(self) -> str | None:
+        raise NotImplementedError
+
+    @property
+    def native_value(self) -> float | None:
+        sensor_id = self._linked_sensor_id
+        if not sensor_id:
+            return None
+        state = self.hass.states.get(sensor_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return None
+        try:
+            return float(state.state)
+        except (ValueError, TypeError):
+            return None
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        sensor_id = self._linked_sensor_id
+        if sensor_id:
+            state = self.hass.states.get(sensor_id)
+            if state is not None:
+                unit = state.attributes.get("unit_of_measurement")
+                if unit:
+                    return unit
+        return self._attr_native_unit_of_measurement
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Subscribe directly to the source so the mirror tracks every reading in
+        # real time (the PlantData listener only fires on persisted changes).
+        sensor_id = self._linked_sensor_id
+        if sensor_id:
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass, [sensor_id], self._on_sensor_update
+                )
+            )
+
+    @callback
+    def _on_sensor_update(self, event) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        sensor_id = self._linked_sensor_id
+        if not sensor_id:
+            return False
+        state = self.hass.states.get(sensor_id)
+        return state is not None and state.state not in ("unknown", "unavailable")
+
+
+class CurrentTemperatureSensor(LinkedSensorMirror):
+    """Mirrors the linked ambient temperature sensor (display only)."""
+
+    _attr_translation_key = "current_temperature"
+    _attr_icon = "mdi:thermometer"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = "°C"
+
+    def __init__(self, plant: PlantData, entry: ConfigEntry) -> None:
+        super().__init__(plant, entry)
+        self._attr_unique_id = f"{entry.entry_id}_current_temperature"
+
+    @property
+    def _linked_sensor_id(self) -> str | None:
+        return self._plant.temperature_sensor
+
+
+class CurrentHumiditySensor(LinkedSensorMirror):
+    """Mirrors the linked ambient humidity sensor (display only)."""
+
+    _attr_translation_key = "current_humidity"
+    _attr_icon = "mdi:water-percent"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.HUMIDITY
+    _attr_native_unit_of_measurement = "%"
+
+    def __init__(self, plant: PlantData, entry: ConfigEntry) -> None:
+        super().__init__(plant, entry)
+        self._attr_unique_id = f"{entry.entry_id}_current_humidity"
+
+    @property
+    def _linked_sensor_id(self) -> str | None:
+        return self._plant.humidity_sensor
 
 
 class LastRepottedSensor(PlantSensorBase):
