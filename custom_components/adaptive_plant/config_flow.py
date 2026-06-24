@@ -54,7 +54,9 @@ from .const import (
     OWNED_IMAGE_PREFIX,
     STATE_LAST_FERTILIZED,
     STATE_LAST_REPOTTED,
+    STATE_LAST_WATERED,
     STATE_NEXT_FERTILIZED,
+    STATE_NEXT_WATERING,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -634,6 +636,53 @@ class AdaptivePlantOptionsFlow(OptionsFlow):
                     data_schema=vol.Schema(self._init_schema_fields()),
                     errors=errors,
                 )
+
+            # Reschedule the next due-date when an interval changed. next_watering
+            # / next_fertilized are stored values, otherwise only recomputed by
+            # runtime events (mark_watered, daily rollover, moisture handlers) —
+            # so without this an interval edit saves but the card's next-due date
+            # and days-until don't move until the next watering/fert event. We
+            # recompute from the last event date so the new cadence takes effect
+            # immediately. Goes into `cleaned`, so it propagates through both the
+            # no-moisture merge and the moisture_options merge. Per-period snooze /
+            # early-watering nudges live in the runtime path and are untouched.
+            new_water_interval = user_input.get(OPT_WATERING_INTERVAL)
+            old_water_interval = current_opts.get(
+                OPT_WATERING_INTERVAL, entry.data.get(OPT_WATERING_INTERVAL)
+            )
+            last_watered = current_opts.get(STATE_LAST_WATERED)
+            if (
+                new_water_interval is not None
+                and old_water_interval is not None
+                and new_water_interval != old_water_interval
+                and last_watered
+            ):
+                try:
+                    cleaned[STATE_NEXT_WATERING] = (
+                        date.fromisoformat(last_watered)
+                        + timedelta(days=int(new_water_interval))
+                    ).isoformat()
+                except ValueError:
+                    pass
+
+            new_fert_interval = user_input.get(OPT_FERTILIZATION_INTERVAL)
+            old_fert_interval = current_opts.get(
+                OPT_FERTILIZATION_INTERVAL, entry.data.get(OPT_FERTILIZATION_INTERVAL)
+            )
+            last_fertilized = current_opts.get(STATE_LAST_FERTILIZED)
+            if (
+                new_fert_interval is not None
+                and old_fert_interval is not None
+                and new_fert_interval != old_fert_interval
+                and last_fertilized
+            ):
+                try:
+                    cleaned[STATE_NEXT_FERTILIZED] = (
+                        date.fromisoformat(last_fertilized)
+                        + timedelta(days=int(new_fert_interval))
+                    ).isoformat()
+                except ValueError:
+                    pass
 
             # Handle moisture sensor selection.
             # The toggle is the authoritative clear mechanism — if it's off we
