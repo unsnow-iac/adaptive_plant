@@ -693,6 +693,14 @@ class AdaptivePlantOptionsFlow(OptionsFlow):
             # Remove the toggle key — it's UI-only, not stored in options
             cleaned.pop("moisture_sensor_enabled", None)
 
+            # Resolve the currently stored sensor (key-presence check, mirroring
+            # _init_schema_fields / PlantData.moisture_sensor) so we can tell an
+            # unchanged sensor from a newly added or changed one.
+            if CONF_MOISTURE_SENSOR in current_opts:
+                current_moisture = current_opts[CONF_MOISTURE_SENSOR] or None
+            else:
+                current_moisture = entry.data.get(CONF_MOISTURE_SENSOR)
+
             if moisture_raw:
                 self._pending_moisture_sensor = moisture_raw
                 # Carry non-moisture fields forward so they're saved after thresholds
@@ -700,6 +708,25 @@ class AdaptivePlantOptionsFlow(OptionsFlow):
                 # Carry the clear-label intent forward — step 2's merge would
                 # otherwise pull the stale value back in from current_opts.
                 self._pending_clear_label = clear_label
+                # Only prompt for dry/wet thresholds when the sensor is newly added
+                # or changed. When it's unchanged and thresholds already exist,
+                # reuse them and save in one step — otherwise every edit on a
+                # sensored plant forces a second form, and abandoning that form
+                # silently discarded the whole save.
+                existing_dry = current_opts.get(
+                    CONF_DRY_THRESHOLD, entry.data.get(CONF_DRY_THRESHOLD)
+                )
+                existing_wet = current_opts.get(
+                    CONF_WET_THRESHOLD, entry.data.get(CONF_WET_THRESHOLD)
+                )
+                if (
+                    moisture_raw == current_moisture
+                    and existing_dry is not None
+                    and existing_wet is not None
+                ):
+                    return await self.async_step_moisture_options(
+                        {CONF_DRY_THRESHOLD: existing_dry, CONF_WET_THRESHOLD: existing_wet}
+                    )
                 return await self.async_step_moisture_options()
             else:
                 # Sensor cleared — tombstone the sensor and strip thresholds.
